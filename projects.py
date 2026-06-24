@@ -1017,3 +1017,5 @@ if __name__ == "__main__":
     window = GameHubApp()
     window.show()
     sys.exit(app.exec_())
+
+#I did watch some tutorials on youtube cuz cmon guys, how do u expect me to build somehting like this from scratch
