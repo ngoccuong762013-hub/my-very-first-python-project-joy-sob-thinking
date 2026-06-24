@@ -198,48 +198,75 @@ def hangman(game_stats):
                 
     return game_stats
 
-
-stats = {
-    "ngg win(s)": 0, 
-    "rps win(s)": 0, 
-    "rps_comp_win(s)": 0, 
-    "ngg miss(es)": 0, 
-    "ngg total attempt(s)": 0,
-    "hangman win(s)": 0,     
-    "hangman loss(es)": 0    
-}
-calc_history = []
-
-while True:
-    print("====LIL GAME HUB====")
-    print("1. guessing game")
-    print("2. calculator")
-    print("3. rock/paper/scissors")
-    print("4. hangman")
-    print("5. show stats")
-    print("6. show calculator history(only last 5)")
-    print("7. reset stats/history")
-    print("8. quit")
+def set_alarm(alarm_time):
+    import winsound
+    import time
     
-    choice = input("choose an option: ")
+    print(f"\nAlarm initialized for {alarm_time}.")
+    confirm = input("Press ENTER to activate, or type 'c' to cancel and go back to Hub: ").lower()
+    if confirm == 'c':
+        print("Alarm cancelled. Returning to LIL GAME HUB...")
+        return
+
+    print(f"Alarm set for {alarm_time}. Keep this running...")
+    sound_file = "Never Gonna Give You Up.wav"
     
-    if choice == "1":
-        stats = ngg(stats) 
-    elif choice == "2":
-        calc_history = calc(calc_history)
-    elif choice == "3":
-        stats = rps(stats)
-    elif choice == "4":
-        stats = hangman(stats) 
-    elif choice == "5":
-        show_stats(stats) 
-    elif choice == "6":
-        show_calc_history(calc_history)
-    elif choice == "7":
-        stats, calc_history = reset_stats(stats, calc_history)
-    elif choice == "8":
-        print("goodbye!")
-        break
+    while True:
+        current_time = time.strftime("%H:%M") 
+        
+        if current_time == alarm_time:
+            print("\nWake up son 😂😭")
+            winsound.PlaySound(sound_file, winsound.SND_FILENAME | winsound.SND_LOOP | winsound.SND_ASYNC)
+            
+            input("Press Enter to turn off the music...")
+            winsound.PlaySound(None, winsound.SND_PURGE) 
+            break
+            
+        time.sleep(5) 
 
-#i did use ai BUT it only fixed the spacing :sob :joy
+if __name__ == "__main__":
+    stats = {
+        "ngg win(s)": 0, 
+        "rps win(s)": 0, 
+        "rps_comp_win(s)": 0, 
+        "ngg miss(es)": 0, 
+        "ngg total attempt(s)": 0,
+        "hangman win(s)": 0,     
+        "hangman loss(es)": 0    
+    }
+    calc_history = []
 
+    while True:
+        print("\n====LIL GAME HUB====")
+        print("1. guessing game")
+        print("2. calculator")
+        print("3. rock/paper/scissors")
+        print("4. hangman")
+        print("5. set alarm")
+        print("6. show stats")
+        print("7. show calculator history(only last 5)")
+        print("8. reset stats/history")
+        print("9. quit")
+        
+        choice = input("choose an option: ")
+        
+        if choice == "1":
+            stats = ngg(stats) 
+        elif choice == "2":
+            calc_history = calc(calc_history)
+        elif choice == "3":
+            stats = rps(stats)
+        elif choice == "4":
+            stats = hangman(stats) 
+        elif choice == "5":
+            alarm = input("Set your alarm time in HH:MM format (e.g., 07:30): ")
+            set_alarm(alarm)
+        elif choice == "6":
+            show_stats(stats) 
+        elif choice == "7":
+            show_calc_history(calc_history)
+        elif choice == "8":
+            stats, calc_history = reset_stats(stats, calc_history)
+        elif choice == "9":
+            print("goodbye!")
+            break
