@@ -1,5 +1,7 @@
 import subprocess
 import sys
+
+# Automatic dependency installers
 try:
     import PyQt5
 except ImportError:
@@ -9,11 +11,18 @@ try:
     import requests
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+
 try:
     import pyautogui
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyautogui"])
     import pyautogui
+
+try:
+    import chess
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-chess"])
+    import chess
 
 import random
 import time
@@ -202,7 +211,7 @@ class GameHubApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("My python stuff hub")
-        self.setGeometry(100, 100, 600, 720)
+        self.setGeometry(100, 100, 600, 750)
         
         self.DATA_FILE = "hub_data.json"
         self.load_data()
@@ -212,6 +221,14 @@ class GameHubApp(QMainWindow):
         
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
+        
+        # Color palettes for Chess.com layout
+        self.chess_light_color = "#eeeed2"
+        self.chess_dark_color = "#769656"
+        self.chess_select_color = "#baca44" # Highlight yellow
+        
+        # Initializing all tabs
+        self.init_chess_tab()
         self.init_ngg_tab()
         self.init_calc_tab()
         self.init_tictactoe_tab()
@@ -269,6 +286,172 @@ class GameHubApp(QMainWindow):
                 }, f, indent=4)
         except Exception as e:
             print(f"Error saving data: {e}")
+
+    def init_chess_tab(self):
+        widget = QWidget()
+        main_layout = QVBoxLayout()
+        
+        # Interactive Mode Configuration Row
+        menu_layout = QHBoxLayout()
+        menu_layout.addWidget(QLabel("<b>Mode:</b>"))
+        self.chess_mode_combo = QComboBox()
+        self.chess_mode_combo.addItems(["Player vs Player", "Player vs AI"])
+        self.chess_mode_combo.currentIndexChanged.connect(self.reset_chess_game)
+        menu_layout.addWidget(self.chess_mode_combo)
+        
+        reset_btn = QPushButton("🔄 Reset Match")
+        reset_btn.clicked.connect(self.reset_chess_game)
+        menu_layout.addWidget(reset_btn)
+        main_layout.addLayout(menu_layout)
+        
+        # Dedicated status bar
+        self.chess_status_lbl = QLabel("White's turn to move.")
+        self.chess_status_lbl.setAlignment(Qt.AlignCenter)
+        self.chess_status_lbl.setStyleSheet("font-weight: bold; color: #475569; margin-bottom: 5px;")
+        main_layout.addWidget(self.chess_status_lbl)
+        
+        # Chessboard container grid
+        board_container = QWidget()
+        board_layout = QGridLayout(board_container)
+        board_layout.setSpacing(0)
+        board_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.chess_board = chess.Board()
+        self.selected_square = None  # Holds square index if an asset is clicked
+        self.chess_squares = {}
+        
+        for row in range(8):
+            for col in range(8):
+                btn = QPushButton()
+                btn.setFixedSize(62, 62)
+                btn.setFont(QFont("Arial", 28))
+                
+                # Dynamic lambda tracker for inputs
+                btn.clicked.connect(lambda checked=False, r=row, c=col: self.on_chess_square_click(r, c))
+                
+                self.chess_squares[(row, col)] = btn
+                board_layout.addWidget(btn, row, col)
+                
+        self.update_chess_board_display()
+        
+        main_layout.addWidget(board_container, alignment=Qt.AlignCenter)
+        widget.setLayout(main_layout)
+        self.tabs.addTab(widget, "Chess")
+
+    def update_chess_board_display(self):
+        for row in range(8):
+            for col in range(8):
+                sq = chess.square(col, 7 - row)
+                btn = self.chess_squares[(row, col)]
+                
+                # Display unicode chess items
+                piece = self.chess_board.piece_at(sq)
+                btn.setText(piece.unicode_symbol() if piece else "")
+                
+                # Base tile shading grid
+                if (row + col) % 2 == 0:
+                    bg_color = self.chess_light_color
+                else:
+                    bg_color = self.chess_dark_color
+                    
+                # Highlighting selected pieces
+                if self.selected_square == sq:
+                    bg_color = self.chess_select_color
+                    
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {bg_color};
+                        border: none;
+                        color: #1a1a1a;
+                    }}
+                """)
+        
+        # Update UI text engine indicators
+        if not self.chess_board.is_game_over():
+            turn_str = "White" if self.chess_board.turn == chess.WHITE else "Black"
+            self.chess_status_lbl.setText(f"{turn_str}'s turn to move.")
+
+    def on_chess_square_click(self, row, col):
+        sq = chess.square(col, 7 - row)
+        
+        # First click configuration - select an asset item
+        if self.selected_square is None:
+            piece = self.chess_board.piece_at(sq)
+            if piece and piece.color == self.chess_board.turn:
+                self.selected_square = sq
+                self.update_chess_board_display()
+        else:
+            # Second click configuration - execution evaluation
+            move = chess.Move(self.selected_square, sq)
+            
+            # Simple automatic queen promotion mapping rule 
+            piece = self.chess_board.piece_at(self.selected_square)
+            if piece and piece.piece_type == chess.PAWN and chess.square_rank(sq) in [0, 7]:
+                move.promotion = chess.QUEEN
+                
+            if move in self.chess_board.legal_moves:
+                self.chess_board.push(move)
+                self.selected_square = None
+                self.update_chess_board_display()
+                
+                if not self.check_chess_game_over():
+                    # Handle internal AI triggers
+                    if self.chess_mode_combo.currentText() == "Player vs AI" and self.chess_board.turn == chess.BLACK:
+                        self.chess_status_lbl.setText("AI is processing tactical pathing...")
+                        QTimer.singleShot(600, self.execute_ai_chess_move)
+            else:
+                # Retoggle selections if clicking another friendly component directly
+                other_piece = self.chess_board.piece_at(sq)
+                if other_piece and other_piece.color == self.chess_board.turn:
+                    self.selected_square = sq
+                else:
+                    self.selected_square = None
+                self.update_chess_board_display()
+
+    def execute_ai_chess_move(self):
+        if self.chess_board.is_game_over(): return
+        
+        legal_actions = list(self.chess_board.legal_moves)
+        if not legal_actions: return
+        
+        # Heuristic evaluator - prioritize material value captures over random positions
+        valuable_pick = random.choice(legal_actions)
+        top_score = -1
+        weights = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
+        
+        for action in legal_actions:
+            current_score = 0
+            if self.chess_board.is_capture(action):
+                target = self.chess_board.piece_at(action.to_square)
+                if target:
+                    current_score = weights.get(target.piece_type, 1)
+            if current_score > top_score:
+                top_score = current_score
+                valuable_pick = action
+                
+        self.chess_board.push(valuable_pick)
+        self.update_chess_board_display()
+        self.check_chess_game_over()
+
+    def check_chess_game_over(self):
+        if self.chess_board.is_game_over():
+            if self.chess_board.is_checkmate():
+                winner = "Black" if self.chess_board.turn == chess.WHITE else "White"
+                msg = f"Checkmate! Winner: {winner}."
+            elif self.chess_board.is_stalemate():
+                msg = "Match drawn via Stalemate rules."
+            else:
+                msg = "Match concluded with a draw."
+                
+            self.chess_status_lbl.setText(msg)
+            QMessageBox.information(self, "Chess Engine", msg)
+            return True
+        return False
+
+    def reset_chess_game(self):
+        self.chess_board.reset()
+        self.selected_square = None
+        self.update_chess_board_display()
 
     def init_todo_tab(self):
         widget = QWidget()
@@ -527,21 +710,9 @@ class GameHubApp(QMainWindow):
             raise ValueError("Empty expression")
 
         allowed_nodes = (
-            ast.Expression,
-            ast.BinOp,
-            ast.UnaryOp,
-            ast.Constant,
-            ast.Load,
-            ast.Add,
-            ast.Sub,
-            ast.Mult,
-            ast.Div,
-            ast.FloorDiv,
-            ast.Mod,
-            ast.Pow,
-            ast.USub,
-            ast.UAdd,
-            ast.Num,
+            ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Load,
+            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod,
+            ast.Pow, ast.USub, ast.UAdd, ast.Num
         )
         try:
             tree = ast.parse(expr, mode='eval')
@@ -680,14 +851,8 @@ class GameHubApp(QMainWindow):
 
     def check_tictactoe_winner(self):
         winning_lines = [
-            (0, 1, 2),
-            (3, 4, 5),
-            (6, 7, 8),
-            (0, 3, 6),
-            (1, 4, 7),
-            (2, 5, 8),
-            (0, 4, 8),
-            (2, 4, 6),
+            (0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6),
+            (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6),
         ]
         for a, b, c in winning_lines:
             if self.ttt_board[a] and self.ttt_board[a] == self.ttt_board[b] == self.ttt_board[c]:
@@ -921,9 +1086,9 @@ class GameHubApp(QMainWindow):
         self.portfolio["cash"] -= gross_cost
         holdings = self.portfolio["shares"].get(self.current_tracked_ticker, {"qty": 0, "avg_cost": 0.0})
         
-        c_qty, c_avg = holdings["qty"], holdings["avg_cost"]
-        new_qty = c_qty + qty
-        new_avg = ((c_qty * c_avg) + gross_cost) / new_qty
+        make_qty, c_avg = holdings["qty"], holdings["avg_cost"]
+        new_qty = make_qty + qty
+        new_avg = ((make_qty * c_avg) + gross_cost) / new_qty
         
         self.portfolio["shares"][self.current_tracked_ticker] = {"qty": new_qty, "avg_cost": round(new_avg, 2)}
         self.save_data()
@@ -1172,4 +1337,4 @@ if __name__ == "__main__":
     window.show()
     sys.exit(app.exec_())
 
-#I did watch some tutorials on youtube cuz cmon guys, how do u expect me to build somehting like this from scratch
+#I did watch some tutorials on youtube cuz cmon, how do u guys expect me to build something like this from scratch :thinking:
