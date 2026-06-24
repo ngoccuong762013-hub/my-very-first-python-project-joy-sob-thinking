@@ -572,3 +572,4 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 
     #I did use ai but the purpose was to fix my spacing, formatting issues and make the code more readable :joy
+    #I did follow some tutorials on Youtube cuz cmon, how do u expect me to start making something this much from scratch :thinking:
