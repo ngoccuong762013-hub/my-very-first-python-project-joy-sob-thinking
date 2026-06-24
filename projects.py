@@ -270,3 +270,4 @@ if __name__ == "__main__":
         elif choice == "9":
             print("goodbye!")
             break
+#I did use ai but the purpose was to fix my spacing :sob :joy
