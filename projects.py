@@ -1,7 +1,5 @@
 import subprocess
 import sys
-
-# Automatic dependency installers
 try:
     import PyQt5
 except ImportError:
@@ -221,13 +219,9 @@ class GameHubApp(QMainWindow):
         
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
-        
-        # Color palettes for Chess.com layout
         self.chess_light_color = "#eeeed2"
         self.chess_dark_color = "#769656"
-        self.chess_select_color = "#baca44" # Highlight yellow
-        
-        # Initializing all tabs
+        self.chess_select_color = "#baca44"
         self.init_chess_tab()
         self.init_ngg_tab()
         self.init_calc_tab()
@@ -290,43 +284,32 @@ class GameHubApp(QMainWindow):
     def init_chess_tab(self):
         widget = QWidget()
         main_layout = QVBoxLayout()
-        
-        # Interactive Mode Configuration Row
         menu_layout = QHBoxLayout()
         menu_layout.addWidget(QLabel("<b>Mode:</b>"))
         self.chess_mode_combo = QComboBox()
         self.chess_mode_combo.addItems(["Player vs Player", "Player vs AI"])
         self.chess_mode_combo.currentIndexChanged.connect(self.reset_chess_game)
-        menu_layout.addWidget(self.chess_mode_combo)
-        
+        menu_layout.addWidget(self.chess_mode_combo)    
         reset_btn = QPushButton("🔄 Reset Match")
         reset_btn.clicked.connect(self.reset_chess_game)
         menu_layout.addWidget(reset_btn)
         main_layout.addLayout(menu_layout)
-        
-        # Dedicated status bar
         self.chess_status_lbl = QLabel("White's turn to move.")
         self.chess_status_lbl.setAlignment(Qt.AlignCenter)
         self.chess_status_lbl.setStyleSheet("font-weight: bold; color: #475569; margin-bottom: 5px;")
         main_layout.addWidget(self.chess_status_lbl)
-        
-        # Chessboard container grid
         board_container = QWidget()
         board_layout = QGridLayout(board_container)
         board_layout.setSpacing(0)
-        board_layout.setContentsMargins(0, 0, 0, 0)
-        
+        board_layout.setContentsMargins(0, 0, 0, 0) 
         self.chess_board = chess.Board()
-        self.selected_square = None  # Holds square index if an asset is clicked
+        self.selected_square = None
         self.chess_squares = {}
-        
         for row in range(8):
             for col in range(8):
                 btn = QPushButton()
                 btn.setFixedSize(62, 62)
                 btn.setFont(QFont("Arial", 28))
-                
-                # Dynamic lambda tracker for inputs
                 btn.clicked.connect(lambda checked=False, r=row, c=col: self.on_chess_square_click(r, c))
                 
                 self.chess_squares[(row, col)] = btn
@@ -343,18 +326,12 @@ class GameHubApp(QMainWindow):
             for col in range(8):
                 sq = chess.square(col, 7 - row)
                 btn = self.chess_squares[(row, col)]
-                
-                # Display unicode chess items
                 piece = self.chess_board.piece_at(sq)
                 btn.setText(piece.unicode_symbol() if piece else "")
-                
-                # Base tile shading grid
                 if (row + col) % 2 == 0:
                     bg_color = self.chess_light_color
                 else:
                     bg_color = self.chess_dark_color
-                    
-                # Highlighting selected pieces
                 if self.selected_square == sq:
                     bg_color = self.chess_select_color
                     
@@ -365,26 +342,19 @@ class GameHubApp(QMainWindow):
                         color: #1a1a1a;
                     }}
                 """)
-        
-        # Update UI text engine indicators
         if not self.chess_board.is_game_over():
             turn_str = "White" if self.chess_board.turn == chess.WHITE else "Black"
             self.chess_status_lbl.setText(f"{turn_str}'s turn to move.")
 
     def on_chess_square_click(self, row, col):
         sq = chess.square(col, 7 - row)
-        
-        # First click configuration - select an asset item
         if self.selected_square is None:
             piece = self.chess_board.piece_at(sq)
             if piece and piece.color == self.chess_board.turn:
                 self.selected_square = sq
                 self.update_chess_board_display()
         else:
-            # Second click configuration - execution evaluation
             move = chess.Move(self.selected_square, sq)
-            
-            # Simple automatic queen promotion mapping rule 
             piece = self.chess_board.piece_at(self.selected_square)
             if piece and piece.piece_type == chess.PAWN and chess.square_rank(sq) in [0, 7]:
                 move.promotion = chess.QUEEN
@@ -395,12 +365,10 @@ class GameHubApp(QMainWindow):
                 self.update_chess_board_display()
                 
                 if not self.check_chess_game_over():
-                    # Handle internal AI triggers
                     if self.chess_mode_combo.currentText() == "Player vs AI" and self.chess_board.turn == chess.BLACK:
                         self.chess_status_lbl.setText("AI is processing tactical pathing...")
                         QTimer.singleShot(600, self.execute_ai_chess_move)
             else:
-                # Retoggle selections if clicking another friendly component directly
                 other_piece = self.chess_board.piece_at(sq)
                 if other_piece and other_piece.color == self.chess_board.turn:
                     self.selected_square = sq
@@ -413,8 +381,6 @@ class GameHubApp(QMainWindow):
         
         legal_actions = list(self.chess_board.legal_moves)
         if not legal_actions: return
-        
-        # Heuristic evaluator - prioritize material value captures over random positions
         valuable_pick = random.choice(legal_actions)
         top_score = -1
         weights = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
