@@ -214,6 +214,7 @@ class GameHubApp(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.init_ngg_tab()
         self.init_calc_tab()
+        self.init_tictactoe_tab()
         self.init_rps_tab()
         self.init_hangman_tab()
         self.init_todo_tab()
@@ -268,6 +269,7 @@ class GameHubApp(QMainWindow):
                 }, f, indent=4)
         except Exception as e:
             print(f"Error saving data: {e}")
+
     def init_todo_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -317,6 +319,7 @@ class GameHubApp(QMainWindow):
         self.todo_list_widget.clear()
         self.todo_list_data.clear()
         self.save_data()
+
     def init_notebook_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -335,6 +338,7 @@ class GameHubApp(QMainWindow):
     def auto_save_notebook(self):
         self.notebook_memo = self.notebook_edit.toPlainText()
         self.save_data()
+
     def init_autoclicker_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -387,12 +391,14 @@ class GameHubApp(QMainWindow):
             pyautogui.click()
         except Exception:
             pass
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F6:
             self.toggle_clicker_engine(True)
         elif event.key() == Qt.Key_F7:
             self.toggle_clicker_engine(False)
         super().keyPressEvent(event)
+
     def init_loginbot_tab(self):
         widget = QWidget()
         form_layout = QGridLayout()
@@ -442,6 +448,7 @@ class GameHubApp(QMainWindow):
 
     def log_bot_status(self, text):
         self.bot_terminal_logs.append(f"[{time.strftime('%H:%M:%S')}] {text}")
+
     def init_ngg_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -481,69 +488,212 @@ class GameHubApp(QMainWindow):
         self.ngg_input.clear()
         self.save_data()
         self.update_stats_display()
+
     def init_calc_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
         self.calc_display = QLineEdit()
         self.calc_display.setReadOnly(True)
         self.calc_display.setAlignment(Qt.AlignRight)
+        self.calc_display.setPlaceholderText("0")
+        self.calc_display.setStyleSheet("font-size: 24px; padding: 8px;")
         layout.addWidget(self.calc_display)
         grid_layout = QGridLayout()
         buttons = [
-            ['7', '8', '9', '/'],
-            ['4', '5', '6', '*'],
-            ['1', '2', '3', '-'],
-            ['C', '0', '=', '+']
+            ['7', '8', '9', '/', 'C'],
+            ['4', '5', '6', '*', '('],
+            ['1', '2', '3', '-', ')'],
+            ['0', '.', '=', '+', '⌫']
         ]
         for r_idx, row in enumerate(buttons):
             for c_idx, label in enumerate(row):
                 btn = QPushButton(label)
-                btn.clicked.connect(lambda checked, l=label: self.on_calc_click(l))
+                btn.setMinimumHeight(48)
+                btn.setFont(QFont("Arial", 14))
+                btn.clicked.connect(lambda checked=False, l=label: self.on_calc_click(l))
                 grid_layout.addWidget(btn, r_idx, c_idx)
         layout.addLayout(grid_layout)
         self.calc_history_list = QListWidget()
+        self.calc_history_list.setMaximumHeight(140)
         self.calc_history_list.addItems(self.calc_history)
-        layout.addWidget(QLabel("Last 5 Calculations:"))
+        layout.addWidget(QLabel("Recent calculations:"))
         layout.addWidget(self.calc_history_list)
         widget.setLayout(layout)
         self.tabs.addTab(widget, "Calculator")
         
     def safe_eval(self, expr):
-        allowed_nodes = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Num, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Constant)
+        expr = expr.strip()
+        if not expr:
+            raise ValueError("Empty expression")
+
+        allowed_nodes = (
+            ast.Expression,
+            ast.BinOp,
+            ast.UnaryOp,
+            ast.Constant,
+            ast.Load,
+            ast.Add,
+            ast.Sub,
+            ast.Mult,
+            ast.Div,
+            ast.FloorDiv,
+            ast.Mod,
+            ast.Pow,
+            ast.USub,
+            ast.UAdd,
+            ast.Num,
+        )
         try:
             tree = ast.parse(expr, mode='eval')
             for node in ast.walk(tree):
-                if not isinstance(node, allowed_nodes):
-                    raise ValueError("Unsafe node detected")
-            return eval(compile(tree, filename='', mode='eval'))
-        except Exception:
-            raise ValueError("Invalid Expression")
+                if isinstance(node, ast.Constant):
+                    if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+                        raise ValueError("Only numeric values are allowed")
+                elif not isinstance(node, allowed_nodes):
+                    raise ValueError("Unsafe expression")
+            result = eval(compile(tree, filename='', mode='eval'), {"__builtins__": {}}, {})
+            if isinstance(result, bool):
+                return int(result)
+            if isinstance(result, float) and result.is_integer():
+                return int(result)
+            return result
+        except Exception as exc:
+            raise ValueError("Invalid expression") from exc
 
     def on_calc_click(self, label):
         current_text = self.calc_display.text()
+        if current_text == "Error":
+            current_text = ""
+
         if label == 'C':
             self.calc_display.clear()
-        elif label == '=':
+            return
+
+        if label == '⌫':
+            self.calc_display.setText(current_text[:-1] if current_text else "")
+            return
+
+        if label == '=':
             if not current_text:
                 return
-            if "/0" in current_text or "/ 0" in current_text:
-                QMessageBox.warning(self, "Math Error", "Cannot divide by zero.")
-                self.calc_display.clear()
-                return
+            if current_text.endswith(("+", "-", "*", "/")):
+                current_text = current_text[:-1]
             try:
+                if "/0" in current_text or "/ 0" in current_text:
+                    raise ZeroDivisionError
                 result = self.safe_eval(current_text)
                 entry = f"{current_text} = {result}"
-                self.calc_display.setText(str(result))
                 self.calc_history.append(entry)
                 if len(self.calc_history) > 5:
                     self.calc_history.pop(0)
                 self.calc_history_list.clear()
                 self.calc_history_list.addItems(self.calc_history)
+                self.calc_display.setText(str(result))
                 self.save_data()
+            except ZeroDivisionError:
+                QMessageBox.warning(self, "Math Error", "Cannot divide by zero.")
+                self.calc_display.clear()
             except Exception:
                 self.calc_display.setText("Error")
+            return
+
+        if label in {"+", "-", "*", "/"}:
+            if current_text and current_text[-1] in {"+", "-", "*", "/"}:
+                current_text = current_text[:-1] + label
+            else:
+                current_text += label
+            self.calc_display.setText(current_text)
+            return
+
+        if label == '.':
+            parts = re.split(r"[+\-*/]", current_text)
+            if not parts or "." not in parts[-1]:
+                current_text += "."
+            self.calc_display.setText(current_text)
+            return
+
+        if current_text == "0" and label.isdigit():
+            current_text = label
         else:
-            self.calc_display.setText(current_text + label)
+            current_text += label
+        self.calc_display.setText(current_text)
+
+    def init_tictactoe_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout()
+        self.ttt_status_label = QLabel("Player X's turn")
+        self.ttt_status_label.setAlignment(Qt.AlignCenter)
+        self.ttt_status_label.setFont(QFont("Arial", 16, QFont.Bold))
+        layout.addWidget(self.ttt_status_label)
+
+        grid_layout = QGridLayout()
+        self.ttt_buttons = []
+        for index in range(9):
+            btn = QPushButton("")
+            btn.setFixedSize(90, 90)
+            btn.setFont(QFont("Arial", 24, QFont.Bold))
+            btn.clicked.connect(lambda checked=False, i=index: self.play_tictactoe(i))
+            self.ttt_buttons.append(btn)
+            grid_layout.addWidget(btn, index // 3, index % 3)
+        layout.addLayout(grid_layout)
+
+        reset_btn = QPushButton("Reset Game")
+        reset_btn.clicked.connect(self.reset_tictactoe)
+        layout.addWidget(reset_btn, alignment=Qt.AlignCenter)
+
+        widget.setLayout(layout)
+        self.tabs.addTab(widget, "Tic-Tac-Toe")
+        self.reset_tictactoe()
+
+    def reset_tictactoe(self):
+        self.ttt_board = [""] * 9
+        self.ttt_current_player = "X"
+        self.ttt_game_over = False
+        self.ttt_status_label.setText("Player X's turn")
+        for btn in self.ttt_buttons:
+            btn.setText("")
+            btn.setEnabled(True)
+
+    def play_tictactoe(self, index):
+        if self.ttt_game_over or self.ttt_board[index]:
+            return
+
+        self.ttt_board[index] = self.ttt_current_player
+        self.ttt_buttons[index].setText(self.ttt_current_player)
+        self.ttt_buttons[index].setEnabled(False)
+
+        winner = self.check_tictactoe_winner()
+        if winner:
+            self.ttt_game_over = True
+            self.ttt_status_label.setText(f"Player {winner} wins!")
+            QMessageBox.information(self, "Tic-Tac-Toe", f"Player {winner} wins!")
+            return
+
+        if "" not in self.ttt_board:
+            self.ttt_game_over = True
+            self.ttt_status_label.setText("It's a draw!")
+            QMessageBox.information(self, "Tic-Tac-Toe", "It's a draw!")
+            return
+
+        self.ttt_current_player = "O" if self.ttt_current_player == "X" else "X"
+        self.ttt_status_label.setText(f"Player {self.ttt_current_player}'s turn")
+
+    def check_tictactoe_winner(self):
+        winning_lines = [
+            (0, 1, 2),
+            (3, 4, 5),
+            (6, 7, 8),
+            (0, 3, 6),
+            (1, 4, 7),
+            (2, 5, 8),
+            (0, 4, 8),
+            (2, 4, 6),
+        ]
+        for a, b, c in winning_lines:
+            if self.ttt_board[a] and self.ttt_board[a] == self.ttt_board[b] == self.ttt_board[c]:
+                return self.ttt_board[a]
+        return None
+
     def init_rps_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -574,6 +724,7 @@ class GameHubApp(QMainWindow):
         self.rps_output.setText(result_str)
         self.save_data()
         self.update_stats_display()
+
     def init_hangman_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -634,6 +785,7 @@ class GameHubApp(QMainWindow):
                 self.save_data()
                 self.reset_hangman()
         self.update_stats_display()
+
     def init_stock_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -794,7 +946,6 @@ class GameHubApp(QMainWindow):
         self.save_data()
         self.update_stock_ui()
 
-    # ================= ALARM TAB =================
     def init_alarm_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -842,6 +993,7 @@ class GameHubApp(QMainWindow):
         self.player.stop()
         self.stop_sound_btn.hide()
         self.alarm_status.setText("No alarm active.")
+
     def init_stopwatch_tab(self):
         self.sw_logic = StopwatchLogic()
         widget = QWidget()
@@ -886,6 +1038,7 @@ class GameHubApp(QMainWindow):
         seconds = int(total_seconds % 60)
         centiseconds = int((total_seconds % 1) * 100)
         self.sw_label.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}")
+
     def init_digital_clock_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -898,8 +1051,10 @@ class GameHubApp(QMainWindow):
         self.clock_timer = QTimer()
         self.clock_timer.timeout.connect(self.update_clock_display)
         self.clock_timer.start(1000)
+
     def update_clock_display(self):
         self.clock_label.setText(time.strftime("%H:%M:%S"))
+
     def init_weather_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
@@ -965,6 +1120,7 @@ class GameHubApp(QMainWindow):
         self.weather_output_text.setText(
             f"City: {display_city}\nTemperature: {result['temp']}°C\nCondition: {desc}\nHumidity: {result['humidity']}%"
         )
+
     def init_stats_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
