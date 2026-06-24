@@ -965,8 +965,6 @@ class GameHubApp(QMainWindow):
         self.weather_output_text.setText(
             f"City: {display_city}\nTemperature: {result['temp']}°C\nCondition: {desc}\nHumidity: {result['humidity']}%"
         )
-
-    # ================= STATISTICS SYSTEM LOGS TAB =================
     def init_stats_tab(self):
         widget = QWidget()
         layout = QVBoxLayout()
